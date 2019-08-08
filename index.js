@@ -37,7 +37,6 @@ ffmpegIn.on("exit", (code) => { console.log("ffmpegIn exited with code "+code+"!
 ffmpegIn.stdout.on("data", onData);
 
 const currentStream = spawn("rtmpdump", ("-m 0 -v -r "+process.argv[2]).split(" "));
-currentStream.on("exit", (code) => { console.log("rtmpdump exited with code "+code+"+! Exiting..."); process.exit(code); });
 currentStream.stdout.on("data", (videoData) => ffmpegIn.stdin.write(videoData));
 
 if(loggingEnabled) {
@@ -60,6 +59,8 @@ function noData() {
 	console.log("Timeout reached! Switching to fallback file...");
 	ffmpegOut.stdin.write(noDataBuf);
 	setNoDateTimeout();
+	let currentStream = spawn("rtmpdump", ("-m 0 -v -r "+process.argv[2]).split(" "));
+	currentStream.stdout.on("data", (videoData) => overwriteTimeout(videoData));
 }
 
 function setNoDateTimeout() {
@@ -70,6 +71,15 @@ function setNoDateTimeout() {
 		lastNoData = Date.now();
 		setNoDateTimeout();
 	}, (lastNoData == null) ? noDataDur : (Date.now() - lastNoData + noDataDur));
+}
+
+function overwriteTimeout(videoData) {
+	// Reset Timeout and resume input stream when it is started again
+	if(noDataTimeout)
+		clearTimeout(noDataTimeout);
+	noDataTimeout = setTimeout(noData, timeoutLength);
+	lastNoData = null;
+	ffmpegIn.stdin.write(videoData);
 }
 
 console.log("RTMP Fallback successfully initialized");
